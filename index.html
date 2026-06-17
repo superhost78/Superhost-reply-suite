@@ -402,12 +402,12 @@ function renderLanding() {
       h("button",{onClick:()=>setState({page:"app"}),style:{padding:"9px 18px",background:"#0D9488",color:"#fff",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}},"Try Free →")
     ),
     h("div",{className:"landing-hero"},
-      h("div",{className:"landing-badge"},"✦ Built for Airbnb Superhosts"),
+      h("div",{className:"landing-badge"},""✦ Built by a Superhost for Superhosts"),
       h("h1",{className:"landing-h1"},"Protect Your 5⭐️ Reputation"),
       h("p",{className:"landing-p",style:{fontWeight:"600",color:"#111827",marginBottom:"12px"}},"Every review is marketing. Make yours count."),
       h("p",{className:"landing-p"},"Turn difficult reviews, guest complaints, and Airbnb disputes into professional responses that build trust with future guests."),
-      h("p",{className:"landing-p",style:{fontSize:"13px",fontStyle:"italic"}},"Created by a Superhost with multiple properties, including a Guest Favorite and a Top 10% property, and hundreds of guest reviews — after receiving a retaliatory one-star review. Because future guests judge your response as much as the review itself."),
-      h("button",{className:"cta-btn",onClick:()=>setState({page:"app"})},"Start your 3-day free trial →"),
+      h("p",{className:"landing-p",style:{fontSize:"13px",fontStyle:"italic"}},"Created by a Superhost with multiple properties, including a Guest Favorite and a Top 10% property, and hundreds of guest reviews. After receiving a retaliatory one star review. Because future guests judge your response as much as the review itself."),
+      h("button",{className:"cta-btn",onClick:()=>setState({page:"app"})},"Start your 3 day free trial →"),
       h("div",{className:"cta-sub"},"No credit card required · $12/month after trial"),
       h("div",{className:"features-grid"},
         ...[
