@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+/<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -403,8 +403,10 @@ function renderLanding() {
     ),
     h("div",{className:"landing-hero"},
       h("div",{className:"landing-badge"},"✦ Built for Airbnb Superhosts"),
-      h("h1",{className:"landing-h1"},"Stop losing bookings to bad reviews"),
-      h("p",{className:"landing-p"},"Generate professional, on-brand responses to every type of guest review in seconds. Future guests judge you by how you respond."),
+      h("h1",{className:"landing-h1"},"Protect Your 5⭐️ Reputation"),
+      h("p",{className:"landing-p",style:{fontWeight:"600",color:"#111827",marginBottom:"12px"}},"Every review is marketing. Make yours count."),
+      h("p",{className:"landing-p"},"Turn difficult reviews, guest complaints, and Airbnb disputes into professional responses that build trust with future guests."),
+      h("p",{className:"landing-p",style:{fontSize:"13px",fontStyle:"italic"}},"Created by a Superhost with multiple properties, including a Guest Favorite and a Top 10% property, and hundreds of guest reviews — after receiving a retaliatory one-star review. Because future guests judge your response as much as the review itself."),
       h("button",{className:"cta-btn",onClick:()=>setState({page:"app"})},"Start your 3-day free trial →"),
       h("div",{className:"cta-sub"},"No credit card required · $12/month after trial"),
       h("div",{className:"features-grid"},
