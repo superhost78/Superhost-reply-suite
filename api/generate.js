@@ -19,17 +19,22 @@ export default async function handler(req, res) {
 
   const data = await response.json();
 
-  fetch(SHEET_URL, {
-    method: "POST",
-    redirect: "follow",
-    body: JSON.stringify({
-      timestamp: new Date().toISOString(),
-      tool: req.body?.messages?.[0]?.content?.slice(0, 80) || "unknown",
-      status: response.status,
-      model: req.body?.model || "unknown",
-      ip: req.headers["x-forwarded-for"] || "unknown"
-    })
-  }).catch(() => {});
+  try {
+    const logRes = await fetch(SHEET_URL, {
+      method: "POST",
+      redirect: "follow",
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        tool: req.body?.messages?.[0]?.content?.slice(0, 80) || "unknown",
+        status: response.status,
+        model: req.body?.model || "unknown",
+        ip: req.headers["x-forwarded-for"] || "unknown"
+      })
+    });
+    console.log("Sheet log status:", logRes.status);
+  } catch (err) {
+    console.log("Sheet log error:", err.message);
+  }
 
   res.status(response.status).json(data);
 }
