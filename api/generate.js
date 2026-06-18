@@ -21,6 +21,7 @@ export default async function handler(req, res) {
 
   fetch(SHEET_URL, {
     method: "POST",
+    redirect: "follow",
     body: JSON.stringify({
       timestamp: new Date().toISOString(),
       tool: req.body?.messages?.[0]?.content?.slice(0, 80) || "unknown",
