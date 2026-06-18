@@ -60,6 +60,7 @@ button:active{transform:scale(0.98);}
 .error{background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 14px;margin-top:14px;font-size:13px;color:#DC2626;}
 .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;margin-right:8px;vertical-align:middle;}
 .dispute-note{background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:13px;color:#7C3AED;line-height:1.5;}
+.guest-note{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:13px;color:#2563EB;line-height:1.5;}
 .footer{text-align:center;margin-top:40px;font-size:12px;color:#6B7280;}
 .paywall-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;}
 .paywall-box{background:#fff;border-radius:20px;padding:36px 28px;max-width:420px;width:100%;text-align:center;animation:fadeIn 0.25s ease;}
@@ -115,23 +116,43 @@ function getTrialDaysRemaining() {
 function isPaywalled() { return getTrialDaysRemaining() === 0; }
 
 const TOOLS = [
-  { id:"bad", label:"Bad Review", icon:"🔴", color:"#DC2626", headline:"Turn a bad review into a trust signal", sub:"Future guests read how you respond more than what they said." },
-  { id:"positive", label:"Positive Review", icon:"⭐", color:"#D97706", headline:"Say thank you like you mean it", sub:"Hosts who reply to great reviews get more great reviews." },
-  { id:"neutral", label:"Neutral Review", icon:"🟡", color:"#0D9488", headline:"The 3-star review is the sneakiest threat", sub:"A lukewarm response handled well shows future guests who you are." },
-  { id:"dispute", label:"Dispute & Flag", icon:"⚖️", color:"#7C3AED", headline:"Build your escalation case — word by word", sub:"Use the guest's own words to write a dispute Airbnb can't ignore." },
+  { id:"bad", label:"Bad Review", icon:"\u{1F534}", color:"#DC2626", headline:"Turn a bad review into a trust signal", sub:"Future guests read how you respond more than what they said." },
+  { id:"positive", label:"Positive Review", icon:"\u2B50", color:"#D97706", headline:"Say thank you like you mean it", sub:"Hosts who reply to great reviews get more great reviews." },
+  { id:"neutral", label:"Neutral Review", icon:"\u{1F7E1}", color:"#0D9488", headline:"The 3-star review is the sneakiest threat", sub:"A lukewarm response handled well shows future guests who you are." },
+  { id:"dispute", label:"Dispute & Flag", icon:"\u2696\uFE0F", color:"#7C3AED", headline:"Build your escalation case \u2014 word by word", sub:"Use the guest's own words to write a dispute Airbnb can't ignore." },
+  { id:"guest", label:"Guest Message", icon:"\u{1F4AC}", color:"#2563EB", headline:"Respond to any guest message like a pro", sub:"Paste what they sent. Pick your position. Get a reply that's firm, warm, and clear." },
 ];
 
 const TONES = ["Professional","Warm","Firm","Apologetic"];
-const TONE_ICONS = {Professional:"🎩",Warm:"🤝",Firm:"⚖️",Apologetic:"🕊️"};
+const TONE_ICONS = {Professional:"\u{1F3A9}",Warm:"\u{1F91D}",Firm:"\u2696\uFE0F",Apologetic:"\u{1F54A}\uFE0F"};
 
 const BAD_ISSUES = ["Cleanliness complaint","Amenity not as described","Noise complaint","Check-in issue","Host communication","Safety concern (unfounded)","Retaliatory / suspected fake","Pricing / value complaint","Other"];
 const DISPUTE_GROUNDS = ["Retaliatory review after dispute","Review violates Airbnb content policy","Guest caused damage and reviewed negatively","Review contains false factual claims","Guest broke house rules, then reviewed","Review left by wrong guest / error","Extortion attempt prior to review"];
+
+const GUEST_SITUATIONS = [
+  "Refund request outside cancellation policy",
+  "Complaint during stay",
+  "Pre-arrival anxiety / excessive questions",
+  "Threatening or aggressive message",
+  "Alteration or date change request",
+  "Early checkout request",
+  "Damage or missing item accusation",
+  "General emotional / overwhelming message"
+];
+
+const HOST_POSITIONS = [
+  "Holding firm on my policy",
+  "Willing to offer a partial refund or concession",
+  "Need more information before deciding",
+  "Escalating to Airbnb support",
+  "Approving the request"
+];
 
 let state = {
   page: "landing",
   activeTool: "bad",
   loading: false,
-  outputs: {bad:"",positive:"",neutral:"",dispute:""},
+  outputs: {bad:"",positive:"",neutral:"",dispute:"",guest:""},
   copied: false,
   showPaywall: false,
   daysRemaining: TRIAL_DAYS,
@@ -141,6 +162,7 @@ let state = {
     positive: {review:"",tone:"Warm",propertyName:"",stayHighlights:""},
     neutral: {review:"",tone:"Professional",propertyName:"",yourContext:""},
     dispute: {review:"",disputeGround:"",propertyName:"",yourContext:""},
+    guest: {message:"",situationType:"",hostPosition:"",tone:"Professional",propertyName:""},
   }
 };
 
@@ -151,7 +173,6 @@ function setState(updates) {
 
 function setField(toolId, key, val) {
   state.fields[toolId][key] = val;
-  // Only update the generate button state, not full re-render
   updateGenerateBtn();
 }
 
@@ -162,6 +183,7 @@ function updateGenerateBtn() {
   else if (state.activeTool === "positive") can = f.review.trim().length > 10;
   else if (state.activeTool === "neutral") can = f.review.trim().length > 10;
   else if (state.activeTool === "dispute") can = f.review.trim().length > 10 && !!f.disputeGround;
+  else if (state.activeTool === "guest") can = f.message.trim().length > 10 && !!f.situationType && !!f.hostPosition;
   const btn = document.querySelector(".btn");
   if (btn) btn.disabled = !can || state.loading;
 }
@@ -173,6 +195,7 @@ function buildPrompt(toolId) {
   if (toolId === "positive") return `You are an expert Airbnb Superhost consultant. Generate a ${f.tone.toLowerCase()} public thank-you response to this positive review${prop}.\nReview: "${f.review}"\n${f.stayHighlights ? "Host notes: "+f.stayHighlights : ""}\nRules: Under 150 words. Reference something specific. Sound like a real person. Invite them back. Write ONLY the response.`;
   if (toolId === "neutral") return `You are an expert Airbnb Superhost consultant. Generate a thoughtful public response to this neutral review${prop}.\nReview: "${f.review}"\n${f.yourContext ? "Context: "+f.yourContext : ""}\nRules: Under 180 words. Turn lukewarm into a trust signal. Write ONLY the response.`;
   if (toolId === "dispute") return `You are an expert Airbnb dispute specialist. Write a formal review removal request to Airbnb support${prop}.\nGrounds: ${f.disputeGround}\nReview: "${f.review}"\n${f.yourContext ? "Evidence: "+f.yourContext : ""}\nRules: Under 300 words. Reference Airbnb Review Policy. Request review removal. Write ONLY the dispute message.`;
+  if (toolId === "guest") return `You are an expert Airbnb Superhost consultant. Draft a direct message reply to a guest${prop}.\nSituation: ${f.situationType}\nHost position: ${f.hostPosition}\nGuest message: "${f.message}"\nRules: Under 200 words. Be ${f.tone.toLowerCase()}. Address everything the guest raised. Be clear about the outcome without being cold. Do not over-apologize. Do not be a pushover. Protect the host's position while remaining respectful. Write ONLY the reply message.`;
 }
 
 async function generate() {
@@ -225,10 +248,10 @@ function renderHeader() {
   const days = state.daysRemaining;
   const badge = days > 0
     ? h("div",{className:"badge"}, `${days} day${days!==1?"s":""} left in trial`)
-    : h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"badge",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Unlock Full Access →");
+    : h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"badge",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Unlock Full Access \u2192");
   return h("div",{className:"header"},
     h("div",{className:"logo", onClick:()=>setState({page:"landing"})},
-      h("div",{className:"logo-icon"},"🏡"),
+      h("div",{className:"logo-icon"},"\u{1F3E1}"),
       h("div",{},
         h("div",{className:"logo-text"},"Superhost Reply Suite"),
         h("div",{className:"logo-sub"},"AI Review Toolkit")
@@ -305,19 +328,19 @@ function renderOutputCard() {
   if (!output) return null;
   return h("div",{className:"output-card"},
     h("div",{className:"output-header"},
-      h("div",{className:"output-label"},"✦ Your response"),
-      h("button",{className:"copy-btn",onClick:copyOutput}, state.copied?"✓ Copied!":"Copy")
+      h("div",{className:"output-label"},"\u2726 Your response"),
+      h("button",{className:"copy-btn",onClick:copyOutput}, state.copied?"\u2713 Copied!":"Copy")
     ),
     h("div",{className:"output-text"},output),
     h("div",{className:"divider"}),
-    h("button",{className:"regen-btn",onClick:generate},"↻ Regenerate"),
-    h("div",{className:"tip"},"💡 ",h("strong",{},"Pro tip:")," Post your response within 48 hours. Speed signals attentiveness to future guests.")
+    h("button",{className:"regen-btn",onClick:generate},"\u21BB Regenerate"),
+    h("div",{className:"tip"},"\u{1F4A1} ",h("strong",{},"Pro tip:")," Post your response within 48 hours. Speed signals attentiveness to future guests.")
   );
 }
 
-function renderGenerateBtn(can, label="Generate Response →") {
+function renderGenerateBtn(can, label="Generate Response \u2192") {
   const btn = h("button",{className:"btn",onClick:generate},
-    state.loading ? h("span",{},h("span",{className:"spinner"}),"Crafting your response…") : label
+    state.loading ? h("span",{},h("span",{className:"spinner"}),"Crafting your response\u2026") : label
   );
   if (!can || state.loading) btn.disabled = true;
   return btn;
@@ -328,8 +351,8 @@ function renderBadTool() {
   const can = f.review.trim().length>10 && !!f.issueType;
   return h("div",{},
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("bad","propertyName","e.g. SugarDolphin Beach Condo")),
-    h("div",{className:"field"},h("label",{className:"field-label"},"Complaint type"),renderSelect("bad","issueType",BAD_ISSUES,"Select complaint type…")),
-    h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("bad","review","Paste the exact review text here…",5)),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Complaint type"),renderSelect("bad","issueType",BAD_ISSUES,"Select complaint type\u2026")),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("bad","review","Paste the exact review text here\u2026",5)),
     h("div",{className:"field",style:{marginBottom:"18px"}},h("label",{className:"field-label"},"Response tone"),renderToneSelector("bad")),
     renderGenerateBtn(can),
     renderOutputCard()
@@ -341,7 +364,7 @@ function renderPositiveTool() {
   const can = f.review.trim().length>10;
   return h("div",{},
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("positive","propertyName","e.g. SugarDolphin Beach Condo")),
-    h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("positive","review","Paste the 5-star review here…",4)),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("positive","review","Paste the 5-star review here\u2026",4)),
     h("div",{className:"field"},h("label",{className:"field-label"},"Anything specific to highlight? ",h("span",{className:"field-optional"},"(optional)")),renderInput("positive","stayHighlights","e.g. They mentioned their anniversary, loved the ocean view")),
     h("div",{className:"field",style:{marginBottom:"18px"}},h("label",{className:"field-label"},"Response tone"),renderToneSelector("positive")),
     renderGenerateBtn(can),
@@ -354,7 +377,7 @@ function renderNeutralTool() {
   const can = f.review.trim().length>10;
   return h("div",{},
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("neutral","propertyName","e.g. SugarDolphin Beach Condo")),
-    h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("neutral","review","Paste the neutral or mixed review here…",4)),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("neutral","review","Paste the neutral or mixed review here\u2026",4)),
     h("div",{className:"field"},h("label",{className:"field-label"},"What you've since fixed ",h("span",{className:"field-optional"},"(optional)")),renderInput("neutral","yourContext","e.g. The AC issue was repaired the following day")),
     h("div",{className:"field",style:{marginBottom:"18px"}},h("label",{className:"field-label"},"Response tone"),renderToneSelector("neutral")),
     renderGenerateBtn(can),
@@ -366,12 +389,27 @@ function renderDisputeTool() {
   const f = state.fields.dispute;
   const can = f.review.trim().length>10 && !!f.disputeGround;
   return h("div",{},
-    h("div",{className:"dispute-note"},"⚖️ ",h("strong",{},"Dispute tool:")," Drafts a formal removal request to Airbnb support — not a public response."),
+    h("div",{className:"dispute-note"},"\u2696\uFE0F ",h("strong",{},"Dispute tool:")," Drafts a formal removal request to Airbnb support \u2014 not a public response."),
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("dispute","propertyName","e.g. SugarDolphin Beach Condo")),
-    h("div",{className:"field"},h("label",{className:"field-label"},"Grounds for dispute"),renderSelect("dispute","disputeGround",DISPUTE_GROUNDS,"Select grounds…")),
-    h("div",{className:"field"},h("label",{className:"field-label"},"The review you want removed"),renderTextarea("dispute","review","Paste the exact review text here…",4)),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Grounds for dispute"),renderSelect("dispute","disputeGround",DISPUTE_GROUNDS,"Select grounds\u2026")),
+    h("div",{className:"field"},h("label",{className:"field-label"},"The review you want removed"),renderTextarea("dispute","review","Paste the exact review text here\u2026",4)),
     h("div",{className:"field",style:{marginBottom:"18px"}},h("label",{className:"field-label"},"Your evidence ",h("span",{className:"field-optional"},"(optional)")),renderTextarea("dispute","yourContext","e.g. Guest threatened a bad review if we didn't comply. Screenshots available.",3,500)),
-    renderGenerateBtn(can,"Draft Dispute Message →"),
+    renderGenerateBtn(can,"Draft Dispute Message \u2192"),
+    renderOutputCard()
+  );
+}
+
+function renderGuestTool() {
+  const f = state.fields.guest;
+  const can = f.message.trim().length > 10 && !!f.situationType && !!f.hostPosition;
+  return h("div",{},
+    h("div",{className:"guest-note"},"\u{1F4AC} ",h("strong",{},"Guest message tool:")," Paste what the guest sent you. Tell us your position. Get a reply you can send back immediately."),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("guest","propertyName","e.g. SugarDolphin Beach Condo")),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Situation type"),renderSelect("guest","situationType",GUEST_SITUATIONS,"Select the situation\u2026")),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Your position"),renderSelect("guest","hostPosition",HOST_POSITIONS,"What do you want to do\u2026")),
+    h("div",{className:"field"},h("label",{className:"field-label"},"Guest message"),renderTextarea("guest","message","Paste exactly what the guest sent you\u2026",6,2000)),
+    h("div",{className:"field",style:{marginBottom:"18px"}},h("label",{className:"field-label"},"Response tone"),renderToneSelector("guest")),
+    renderGenerateBtn(can,"Draft Guest Reply \u2192"),
     renderOutputCard()
   );
 }
@@ -380,19 +418,19 @@ function renderPaywall() {
   if (!state.showPaywall) return null;
   return h("div",{className:"paywall-overlay"},
     h("div",{className:"paywall-box"},
-      h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"🏡"),
+      h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"\u{1F3E1}"),
       h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"8px"}},"Your trial has ended"),
-      h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"24px"}},"Unlock unlimited responses across all four tools."),
+      h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"24px"}},"Unlock unlimited responses across all five tools."),
       h("div",{style:{background:"#F0FDFA",border:"1px solid #CCFBF1",borderRadius:"14px",padding:"20px",marginBottom:"24px"}},
         h("div",{className:"paywall-price"},"$12",h("span",{style:{fontSize:"16px",fontWeight:"500",color:"#6B7280"}},"/month")),
         h("div",{style:{fontSize:"13px",color:"#6B7280",marginTop:"4px"}},"Cancel anytime"),
         h("div",{className:"paywall-features"},
-          ...["Unlimited responses across all 4 tools","Bad review responses","Positive & neutral review replies","Professional Airbnb dispute messages"].map(f=>
-            h("div",{className:"paywall-feature"},h("span",{style:{color:"#0D9488",fontWeight:"700"}},"✓"),f)
+          ...["Unlimited responses across all 5 tools","Bad review responses","Positive & neutral review replies","Professional Airbnb dispute messages","Guest message replies"].map(f=>
+            h("div",{className:"paywall-feature"},h("span",{style:{color:"#0D9488",fontWeight:"700"}},"\u2713"),f)
           )
         )
       ),
-      h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"unlock-btn"},"Unlock Full Access →"),
+      h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"unlock-btn"},"Unlock Full Access \u2192"),
       h("button",{className:"maybe-later",onClick:()=>setState({showPaywall:false})},"Maybe later")
     )
   );
@@ -402,28 +440,29 @@ function renderLanding() {
   return h("div",{className:"landing"},
     h("div",{className:"header"},
       h("div",{className:"logo"},
-        h("div",{className:"logo-icon"},"🏡"),
+        h("div",{className:"logo-icon"},"\u{1F3E1}"),
         h("div",{},
           h("div",{className:"logo-text"},"Superhost Reply Suite"),
           h("div",{className:"logo-sub"},"AI Review Toolkit")
         )
       ),
-      h("button",{onClick:()=>setState({page:"app"}),style:{padding:"9px 18px",background:"#0D9488",color:"#fff",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}},"Try Free →")
+      h("button",{onClick:()=>setState({page:"app"}),style:{padding:"9px 18px",background:"#0D9488",color:"#fff",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}},"Try Free \u2192")
     ),
     h("div",{className:"landing-hero"},
-      h("div",{className:"landing-badge"},"✦ Built by a Superhost for Superhosts"),
-      h("h1",{className:"landing-h1"},"Protect Your 5⭐️ Reputation"),
+      h("div",{className:"landing-badge"},"\u2726 Built by a Superhost for Superhosts"),
+      h("h1",{className:"landing-h1"},"Protect Your 5\u2B50\uFE0F Reputation"),
       h("p",{className:"landing-p",style:{fontWeight:"600",color:"#111827",marginBottom:"12px"}},"Every review is marketing. Make yours count."),
       h("p",{className:"landing-p"},"Turn difficult reviews, guest complaints, and Airbnb disputes into professional responses that build trust with future guests."),
       h("p",{className:"landing-p",style:{fontSize:"13px",fontStyle:"italic"}},"Created by a Superhost with multiple properties, including a Guest Favorite and a Top 10% property, and hundreds of guest reviews. After receiving a retaliatory one star review. Because future guests judge your response as much as the review itself."),
-      h("button",{className:"cta-btn",onClick:()=>setState({page:"app"})},"Start your 3 day free trial →"),
-      h("div",{className:"cta-sub"},"No credit card required · $12/month after trial"),
+      h("button",{className:"cta-btn",onClick:()=>setState({page:"app"})},"Start your 3 day free trial \u2192"),
+      h("div",{className:"cta-sub"},"No credit card required \u00B7 $12/month after trial"),
       h("div",{className:"features-grid"},
         ...[
-          {icon:"🔴",title:"Bad Review Response",desc:"Turn a 1-star nightmare into a trust signal."},
-          {icon:"⭐",title:"Positive Review Reply",desc:"Thank guests in a way that feels personal."},
-          {icon:"🟡",title:"Neutral Review Follow-up",desc:"The 3-star review is the sneakiest threat."},
-          {icon:"⚖️",title:"Dispute & Flag Drafter",desc:"Build a formal Airbnb removal request."},
+          {icon:"\u{1F534}",title:"Bad Review Response",desc:"Turn a 1-star nightmare into a trust signal."},
+          {icon:"\u2B50",title:"Positive Review Reply",desc:"Thank guests in a way that feels personal."},
+          {icon:"\u{1F7E1}",title:"Neutral Review Follow-up",desc:"The 3-star review is the sneakiest threat."},
+          {icon:"\u2696\uFE0F",title:"Dispute & Flag Drafter",desc:"Build a formal Airbnb removal request."},
+          {icon:"\u{1F4AC}",title:"Guest Message Reply",desc:"Turn a wall of guest text into a calm, firm response."},
         ].map(f=>h("div",{className:"feature-card"},
           h("div",{className:"feature-icon"},f.icon),
           h("div",{className:"feature-title"},f.title),
@@ -432,8 +471,8 @@ function renderLanding() {
       ),
       h("div",{className:"pricing-box"},
         h("div",{className:"pricing-price"},"$12",h("span",{style:{fontSize:"16px",fontWeight:"500",color:"#6B7280"}},"/month")),
-        h("div",{className:"pricing-sub"},"Unlimited responses · Cancel anytime"),
-        h("button",{className:"cta-btn",style:{maxWidth:"100%",margin:"0"},onClick:()=>setState({page:"app"})},"Start your free 3-day trial →")
+        h("div",{className:"pricing-sub"},"Unlimited responses \u00B7 Cancel anytime"),
+        h("button",{className:"cta-btn",style:{maxWidth:"100%",margin:"0"},onClick:()=>setState({page:"app"})},"Start your free 3-day trial \u2192")
       )
     )
   );
@@ -455,10 +494,11 @@ function renderApp() {
         state.activeTool==="bad" ? renderBadTool() :
         state.activeTool==="positive" ? renderPositiveTool() :
         state.activeTool==="neutral" ? renderNeutralTool() :
-        renderDisputeTool()
+        state.activeTool==="dispute" ? renderDisputeTool() :
+        renderGuestTool()
       ),
       state.error ? h("div",{className:"error"},state.error) : null,
-      h("div",{className:"footer"},"Superhost Reply Suite · Built for serious hosts")
+      h("div",{className:"footer"},"Superhost Reply Suite \u00B7 Built for serious hosts")
     )
   );
 }
