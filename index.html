@@ -84,6 +84,11 @@ button:active{transform:scale(0.98);}
 .pricing-box{background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:32px;}
 .pricing-price{font-size:28px;font-weight:800;color:#0D9488;letter-spacing:-0.5px;margin-bottom:4px;}
 .pricing-sub{font-size:14px;color:#6B7280;margin-bottom:20px;}
+.email-gate{min-height:100vh;background:#FAFAF7;display:flex;align-items:center;justify-content:center;padding:20px;}
+.email-gate-box{background:#fff;border:1px solid #E5E7EB;border-radius:20px;padding:40px 28px;max-width:440px;width:100%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08);animation:fadeIn 0.3s ease;}
+.email-gate-box .input{text-align:center;font-size:15px;padding:14px;margin-bottom:14px;}
+.email-gate-box .btn{margin-top:0;}
+.email-privacy{font-size:12px;color:#9CA3AF;margin-top:12px;line-height:1.5;}
 </style>
 </head>
 <body>
@@ -91,45 +96,84 @@ button:active{transform:scale(0.98);}
 <div id="app"></div>
 
 <script>
-const LS_CHECKOUT_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
-const TRIAL_DAYS = 3;
-const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
-const STORAGE_KEY = "srs_trial_start";
+var LS_CHECKOUT_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
+var SHEET_URL = "https://script.google.com/macros/s/AKfycbwRaINcfSu40gGXOEEsDuLj6e7IhhZ7A7K_QPOje00lnYjqsG7M7W427VXL4G-_2Fph/exec";
+var TRIAL_DAYS = 3;
+var TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
+var STORAGE_KEY = "srs_trial_start";
+var EMAIL_KEY = "srs_user_email";
 
 function getTrialStart() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    var raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return parseInt(raw, 10);
-    const now = Date.now();
+    var now = Date.now();
     localStorage.setItem(STORAGE_KEY, String(now));
     return now;
-  } catch { return Date.now(); }
+  } catch(e) { return Date.now(); }
 }
 
 function getTrialDaysRemaining() {
-  const start = getTrialStart();
-  const elapsed = Date.now() - start;
-  const remaining = Math.ceil((TRIAL_MS - elapsed) / (1000 * 60 * 60 * 24));
+  var start = getTrialStart();
+  var elapsed = Date.now() - start;
+  var remaining = Math.ceil((TRIAL_MS - elapsed) / (1000 * 60 * 60 * 24));
   return Math.max(0, remaining);
 }
 
 function isPaywalled() { return getTrialDaysRemaining() === 0; }
 
-const TOOLS = [
+function getSavedEmail() {
+  try { return localStorage.getItem(EMAIL_KEY) || ""; } catch(e) { return ""; }
+}
+
+function hasEmail() { return getSavedEmail().length > 0; }
+
+function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
+function logEmail(email) {
+  fetch(SHEET_URL, {
+    method: "POST",
+    redirect: "follow",
+    body: JSON.stringify({
+      timestamp: new Date().toISOString(),
+      tool: "EMAIL: " + email,
+      status: "signup",
+      model: "n/a",
+      ip: "n/a"
+    })
+  }).catch(function(){});
+}
+
+function startTrial() {
+  var inp = document.getElementById("gate-email");
+  if (!inp) return;
+  var email = inp.value.trim();
+  if (!isValidEmail(email)) {
+    inp.style.borderColor = "#DC2626";
+    inp.style.boxShadow = "0 0 0 3px #FEE2E2";
+    return;
+  }
+  try { localStorage.setItem(EMAIL_KEY, email); } catch(e) {}
+  logEmail(email);
+  getTrialStart();
+  setState({page:"app", daysRemaining:getTrialDaysRemaining()});
+}
+
+var TOOLS = [
   { id:"bad", label:"Bad Review", icon:"\u{1F534}", color:"#DC2626", headline:"Turn a bad review into a trust signal", sub:"Future guests read how you respond more than what they said." },
   { id:"positive", label:"Positive Review", icon:"\u2B50", color:"#D97706", headline:"Say thank you like you mean it", sub:"Hosts who reply to great reviews get more great reviews." },
   { id:"neutral", label:"Neutral Review", icon:"\u{1F7E1}", color:"#0D9488", headline:"The 3-star review is the sneakiest threat", sub:"A lukewarm response handled well shows future guests who you are." },
-  { id:"dispute", label:"Dispute & Flag", icon:"\u2696\uFE0F", color:"#7C3AED", headline:"Build your escalation case \u2014 word by word", sub:"Use the guest's own words to write a dispute Airbnb can't ignore." },
-  { id:"guest", label:"Guest Message", icon:"\u{1F4AC}", color:"#2563EB", headline:"Respond to any guest message like a pro", sub:"Paste what they sent. Pick your position. Get a reply that's firm, warm, and clear." },
+  { id:"dispute", label:"Dispute & Flag", icon:"\u2696\uFE0F", color:"#7C3AED", headline:"Build your escalation case \u2014 word by word", sub:"Use the guest\u0027s own words to write a dispute Airbnb can\u0027t ignore." },
+  { id:"guest", label:"Guest Message", icon:"\u{1F4AC}", color:"#2563EB", headline:"Respond to any guest message like a pro", sub:"Paste what they sent. Pick your position. Get a reply that\u0027s firm, warm, and clear." },
 ];
 
-const TONES = ["Professional","Warm","Firm","Apologetic"];
-const TONE_ICONS = {Professional:"\u{1F3A9}",Warm:"\u{1F91D}",Firm:"\u2696\uFE0F",Apologetic:"\u{1F54A}\uFE0F"};
+var TONES = ["Professional","Warm","Firm","Apologetic"];
+var TONE_ICONS = {Professional:"\u{1F3A9}",Warm:"\u{1F91D}",Firm:"\u2696\uFE0F",Apologetic:"\u{1F54A}\uFE0F"};
 
-const BAD_ISSUES = ["Cleanliness complaint","Amenity not as described","Noise complaint","Check-in issue","Host communication","Safety concern (unfounded)","Retaliatory / suspected fake","Pricing / value complaint","Other"];
-const DISPUTE_GROUNDS = ["Retaliatory review after dispute","Review violates Airbnb content policy","Guest caused damage and reviewed negatively","Review contains false factual claims","Guest broke house rules, then reviewed","Review left by wrong guest / error","Extortion attempt prior to review"];
+var BAD_ISSUES = ["Cleanliness complaint","Amenity not as described","Noise complaint","Check-in issue","Host communication","Safety concern (unfounded)","Retaliatory / suspected fake","Pricing / value complaint","Other"];
+var DISPUTE_GROUNDS = ["Retaliatory review after dispute","Review violates Airbnb content policy","Guest caused damage and reviewed negatively","Review contains false factual claims","Guest broke house rules, then reviewed","Review left by wrong guest / error","Extortion attempt prior to review"];
 
-const GUEST_SITUATIONS = [
+var GUEST_SITUATIONS = [
   "Refund request outside cancellation policy",
   "Complaint during stay",
   "Pre-arrival anxiety / excessive questions",
@@ -140,7 +184,7 @@ const GUEST_SITUATIONS = [
   "General emotional / overwhelming message"
 ];
 
-const HOST_POSITIONS = [
+var HOST_POSITIONS = [
   "Holding firm on my policy",
   "Willing to offer a partial refund or concession",
   "Need more information before deciding",
@@ -148,7 +192,7 @@ const HOST_POSITIONS = [
   "Approving the request"
 ];
 
-let state = {
+var state = {
   page: "landing",
   activeTool: "bad",
   loading: false,
@@ -166,6 +210,14 @@ let state = {
   }
 };
 
+function goToApp() {
+  if (hasEmail()) {
+    setState({page:"app", daysRemaining:getTrialDaysRemaining()});
+  } else {
+    setState({page:"email-gate"});
+  }
+}
+
 function setState(updates) {
   state = Object.assign({}, state, updates);
   render();
@@ -177,42 +229,43 @@ function setField(toolId, key, val) {
 }
 
 function updateGenerateBtn() {
-  const f = state.fields[state.activeTool];
-  let can = false;
+  var f = state.fields[state.activeTool];
+  var can = false;
   if (state.activeTool === "bad") can = f.review.trim().length > 10 && !!f.issueType;
   else if (state.activeTool === "positive") can = f.review.trim().length > 10;
   else if (state.activeTool === "neutral") can = f.review.trim().length > 10;
   else if (state.activeTool === "dispute") can = f.review.trim().length > 10 && !!f.disputeGround;
   else if (state.activeTool === "guest") can = f.message.trim().length > 10 && !!f.situationType && !!f.hostPosition;
-  const btn = document.querySelector(".btn");
+  var btn = document.querySelector(".btn");
   if (btn) btn.disabled = !can || state.loading;
 }
 
 function buildPrompt(toolId) {
-  const f = state.fields[toolId];
-  const prop = f.propertyName ? ` for "${f.propertyName}"` : "";
-  if (toolId === "bad") return `You are an expert Airbnb Superhost consultant. Generate a ${f.tone.toLowerCase()} public response to this bad review${prop}.\nComplaint: ${f.issueType}\nReview: "${f.review}"\nRules: Under 200 words. End with a forward-looking note. Do NOT start with Dear Guest. Write ONLY the response.`;
-  if (toolId === "positive") return `You are an expert Airbnb Superhost consultant. Generate a ${f.tone.toLowerCase()} public thank-you response to this positive review${prop}.\nReview: "${f.review}"\n${f.stayHighlights ? "Host notes: "+f.stayHighlights : ""}\nRules: Under 150 words. Reference something specific. Sound like a real person. Invite them back. Write ONLY the response.`;
-  if (toolId === "neutral") return `You are an expert Airbnb Superhost consultant. Generate a thoughtful public response to this neutral review${prop}.\nReview: "${f.review}"\n${f.yourContext ? "Context: "+f.yourContext : ""}\nRules: Under 180 words. Turn lukewarm into a trust signal. Write ONLY the response.`;
-  if (toolId === "dispute") return `You are an expert Airbnb dispute specialist. Write a formal review removal request to Airbnb support${prop}.\nGrounds: ${f.disputeGround}\nReview: "${f.review}"\n${f.yourContext ? "Evidence: "+f.yourContext : ""}\nRules: Under 300 words. Reference Airbnb Review Policy. Request review removal. Write ONLY the dispute message.`;
-  if (toolId === "guest") return `You are an expert Airbnb Superhost consultant. Draft a direct message reply to a guest${prop}.\nSituation: ${f.situationType}\nHost position: ${f.hostPosition}\nGuest message: "${f.message}"\nRules: Under 200 words. Be ${f.tone.toLowerCase()}. Address everything the guest raised. Be clear about the outcome without being cold. Do not over-apologize. Do not be a pushover. Protect the host's position while remaining respectful. Write ONLY the reply message.`;
+  var f = state.fields[toolId];
+  var prop = f.propertyName ? ' for "' + f.propertyName + '"' : "";
+  if (toolId === "bad") return "You are an expert Airbnb Superhost consultant. Generate a " + f.tone.toLowerCase() + " public response to this bad review" + prop + ".\nComplaint: " + f.issueType + '\nReview: "' + f.review + '"\nRules: Under 200 words. End with a forward-looking note. Do NOT start with Dear Guest. Write ONLY the response.';
+  if (toolId === "positive") return "You are an expert Airbnb Superhost consultant. Generate a " + f.tone.toLowerCase() + " public thank-you response to this positive review" + prop + '.\nReview: "' + f.review + '"\n' + (f.stayHighlights ? "Host notes: " + f.stayHighlights : "") + "\nRules: Under 150 words. Reference something specific. Sound like a real person. Invite them back. Write ONLY the response.";
+  if (toolId === "neutral") return "You are an expert Airbnb Superhost consultant. Generate a thoughtful public response to this neutral review" + prop + '.\nReview: "' + f.review + '"\n' + (f.yourContext ? "Context: " + f.yourContext : "") + "\nRules: Under 180 words. Turn lukewarm into a trust signal. Write ONLY the response.";
+  if (toolId === "dispute") return "You are an expert Airbnb dispute specialist. Write a formal review removal request to Airbnb support" + prop + ".\nGrounds: " + f.disputeGround + '\nReview: "' + f.review + '"\n' + (f.yourContext ? "Evidence: " + f.yourContext : "") + "\nRules: Under 300 words. Reference Airbnb Review Policy. Request review removal. Write ONLY the dispute message.";
+  if (toolId === "guest") return "You are an expert Airbnb Superhost consultant. Draft a direct message reply to a guest" + prop + ".\nSituation: " + f.situationType + "\nHost position: " + f.hostPosition + '\nGuest message: "' + f.message + '"\nRules: Under 200 words. Be ' + f.tone.toLowerCase() + ". Address everything the guest raised. Be clear about the outcome without being cold. Do not over-apologize. Do not be a pushover. Protect the host's position while remaining respectful. Write ONLY the reply message.";
 }
 
 async function generate() {
   if (isPaywalled()) { setState({showPaywall:true}); return; }
-  const prompt = buildPrompt(state.activeTool);
+  var prompt = buildPrompt(state.activeTool);
   setState({loading:true, error:""});
   try {
-    const res = await fetch("/api/generate", {
+    var res = await fetch("/api/generate", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1000,messages:[{role:"user",content:prompt}]})
     });
-    const data = await res.json();
-    const text = (data.content||[]).map(b=>b.text||"").join("").trim();
+    var data = await res.json();
+    var text = (data.content||[]).map(function(b){return b.text||"";}).join("").trim();
     if (text) {
-      const outputs = Object.assign({}, state.outputs, {[state.activeTool]: text});
-      setState({outputs, loading:false, daysRemaining:getTrialDaysRemaining()});
+      var outputs = Object.assign({}, state.outputs);
+      outputs[state.activeTool] = text;
+      setState({outputs:outputs, loading:false, daysRemaining:getTrialDaysRemaining()});
     } else {
       setState({loading:false, error:"Something went wrong. Please try again."});
     }
@@ -224,33 +277,37 @@ async function generate() {
 function copyOutput() {
   navigator.clipboard.writeText(state.outputs[state.activeTool]);
   setState({copied:true});
-  setTimeout(()=>setState({copied:false}), 2000);
+  setTimeout(function(){setState({copied:false});}, 2000);
 }
 
-function h(tag, attrs, ...children) {
-  const el = document.createElement(tag);
-  for (const [k,v] of Object.entries(attrs||{})) {
-    if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === "className") el.className = v;
-    else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
-    else el.setAttribute(k, v);
+function h(tag, attrs) {
+  var el = document.createElement(tag);
+  var children = Array.prototype.slice.call(arguments, 2);
+  if (attrs) {
+    Object.keys(attrs).forEach(function(k) {
+      var v = attrs[k];
+      if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === "className") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else el.setAttribute(k, v);
+    });
   }
-  for (const child of children) {
-    if (child == null) continue;
+  children.forEach(function(child) {
+    if (child == null) return;
     if (typeof child === "string" || typeof child === "number") el.appendChild(document.createTextNode(child));
     else if (child instanceof Node) el.appendChild(child);
-    else if (Array.isArray(child)) child.forEach(c => c instanceof Node && el.appendChild(c));
-  }
+    else if (Array.isArray(child)) child.forEach(function(c){ if(c instanceof Node) el.appendChild(c); });
+  });
   return el;
 }
 
 function renderHeader() {
-  const days = state.daysRemaining;
-  const badge = days > 0
-    ? h("div",{className:"badge"}, `${days} day${days!==1?"s":""} left in trial`)
+  var days = state.daysRemaining;
+  var badge = days > 0
+    ? h("div",{className:"badge"}, days + " day" + (days!==1?"s":"") + " left in trial")
     : h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"badge",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Unlock Full Access \u2192");
   return h("div",{className:"header"},
-    h("div",{className:"logo", onClick:()=>setState({page:"landing"})},
+    h("div",{className:"logo", onClick:function(){setState({page:"landing"});}},
       h("div",{className:"logo-icon"},"\u{1F3E1}"),
       h("div",{},
         h("div",{className:"logo-text"},"Superhost Reply Suite"),
@@ -262,69 +319,69 @@ function renderHeader() {
 }
 
 function renderTabs() {
-  return h("div",{className:"tabs"},
-    ...TOOLS.map(t => {
-      const tab = h("button",{
-        className:"tab"+(state.activeTool===t.id?" active":""),
-        style:{color:state.activeTool===t.id?t.color:"#6B7280"},
-        onClick:()=>setState({activeTool:t.id,error:""})
-      }, t.icon+" "+t.label);
-      if(state.outputs[t.id]) {
-        const dot = h("span",{style:{width:"7px",height:"7px",borderRadius:"50%",background:"#0D9488",display:"inline-block"}});
-        tab.appendChild(dot);
-      }
-      return tab;
-    })
-  );
+  var tabEls = TOOLS.map(function(t) {
+    var tab = h("button",{
+      className:"tab"+(state.activeTool===t.id?" active":""),
+      style:{color:state.activeTool===t.id?t.color:"#6B7280"},
+      onClick:function(){setState({activeTool:t.id,error:""});}
+    }, t.icon+" "+t.label);
+    if(state.outputs[t.id]) {
+      var dot = h("span",{style:{width:"7px",height:"7px",borderRadius:"50%",background:"#0D9488",display:"inline-block"}});
+      tab.appendChild(dot);
+    }
+    return tab;
+  });
+  return h("div",{className:"tabs"}, tabEls);
 }
 
 function renderToneSelector(toolId) {
-  const tone = state.fields[toolId].tone;
-  return h("div",{className:"tones"},
-    ...TONES.map(t => h("button",{
+  var tone = state.fields[toolId].tone;
+  var btns = TONES.map(function(t) {
+    return h("button",{
       className:"tone"+(tone===t?" active":""),
-      onClick:()=>setField(toolId,"tone",t)
-    }, TONE_ICONS[t]+" "+t))
-  );
+      onClick:function(){setField(toolId,"tone",t);}
+    }, TONE_ICONS[t]+" "+t);
+  });
+  return h("div",{className:"tones"}, btns);
 }
 
 function renderSelect(toolId, key, options, placeholder) {
-  const val = state.fields[toolId][key];
-  const sel = h("select",{className:"select", onChange:e=>setField(toolId,key,e.target.value)},
-    h("option",{value:""},placeholder),
-    ...options.map(o=>h("option",{value:o},o))
-  );
+  var val = state.fields[toolId][key];
+  var opts = [h("option",{value:""},placeholder)].concat(options.map(function(o){return h("option",{value:o},o);}));
+  var sel = h("select",{className:"select", onChange:function(e){setField(toolId,key,e.target.value);}}, opts);
   sel.value = val;
   return sel;
 }
 
-function renderTextarea(toolId, key, placeholder, rows=5, max=1000) {
-  const val = state.fields[toolId][key];
-  const wrap = h("div",{});
-  const ta = h("textarea",{className:"textarea",placeholder,rows,style:{minHeight:rows*24+"px"},
-    onInput:e=>{
-      const v = e.target.value.slice(0,max);
+function renderTextarea(toolId, key, placeholder, rows, max) {
+  rows = rows || 5;
+  max = max || 1000;
+  var val = state.fields[toolId][key];
+  var wrap = h("div",{});
+  var ta = h("textarea",{className:"textarea",placeholder:placeholder,rows:String(rows),style:{minHeight:rows*24+"px"},
+    onInput:function(e){
+      var v = e.target.value.slice(0,max);
       e.target.value = v;
       setField(toolId,key,v);
     }
   });
   ta.value = val;
-  const cc = h("div",{className:"char-count"},val.length+"/"+max);
+  var cc = h("div",{className:"char-count"},val.length+"/"+max);
   wrap.appendChild(ta);
   wrap.appendChild(cc);
   return wrap;
 }
 
 function renderInput(toolId, key, placeholder) {
-  const inp = h("input",{className:"input",placeholder,type:"text",
-    onInput:e=>setField(toolId,key,e.target.value)
+  var inp = h("input",{className:"input",placeholder:placeholder,type:"text",
+    onInput:function(e){setField(toolId,key,e.target.value);}
   });
   inp.value = state.fields[toolId][key];
   return inp;
 }
 
 function renderOutputCard() {
-  const output = state.outputs[state.activeTool];
+  var output = state.outputs[state.activeTool];
   if (!output) return null;
   return h("div",{className:"output-card"},
     h("div",{className:"output-header"},
@@ -338,8 +395,9 @@ function renderOutputCard() {
   );
 }
 
-function renderGenerateBtn(can, label="Generate Response \u2192") {
-  const btn = h("button",{className:"btn",onClick:generate},
+function renderGenerateBtn(can, label) {
+  label = label || "Generate Response \u2192";
+  var btn = h("button",{className:"btn",onClick:generate},
     state.loading ? h("span",{},h("span",{className:"spinner"}),"Crafting your response\u2026") : label
   );
   if (!can || state.loading) btn.disabled = true;
@@ -347,8 +405,8 @@ function renderGenerateBtn(can, label="Generate Response \u2192") {
 }
 
 function renderBadTool() {
-  const f = state.fields.bad;
-  const can = f.review.trim().length>10 && !!f.issueType;
+  var f = state.fields.bad;
+  var can = f.review.trim().length>10 && !!f.issueType;
   return h("div",{},
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("bad","propertyName","e.g. SugarDolphin Beach Condo")),
     h("div",{className:"field"},h("label",{className:"field-label"},"Complaint type"),renderSelect("bad","issueType",BAD_ISSUES,"Select complaint type\u2026")),
@@ -360,8 +418,8 @@ function renderBadTool() {
 }
 
 function renderPositiveTool() {
-  const f = state.fields.positive;
-  const can = f.review.trim().length>10;
+  var f = state.fields.positive;
+  var can = f.review.trim().length>10;
   return h("div",{},
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("positive","propertyName","e.g. SugarDolphin Beach Condo")),
     h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("positive","review","Paste the 5-star review here\u2026",4)),
@@ -373,8 +431,8 @@ function renderPositiveTool() {
 }
 
 function renderNeutralTool() {
-  const f = state.fields.neutral;
-  const can = f.review.trim().length>10;
+  var f = state.fields.neutral;
+  var can = f.review.trim().length>10;
   return h("div",{},
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("neutral","propertyName","e.g. SugarDolphin Beach Condo")),
     h("div",{className:"field"},h("label",{className:"field-label"},"Guest review"),renderTextarea("neutral","review","Paste the neutral or mixed review here\u2026",4)),
@@ -386,8 +444,8 @@ function renderNeutralTool() {
 }
 
 function renderDisputeTool() {
-  const f = state.fields.dispute;
-  const can = f.review.trim().length>10 && !!f.disputeGround;
+  var f = state.fields.dispute;
+  var can = f.review.trim().length>10 && !!f.disputeGround;
   return h("div",{},
     h("div",{className:"dispute-note"},"\u2696\uFE0F ",h("strong",{},"Dispute tool:")," Drafts a formal removal request to Airbnb support \u2014 not a public response."),
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("dispute","propertyName","e.g. SugarDolphin Beach Condo")),
@@ -400,8 +458,8 @@ function renderDisputeTool() {
 }
 
 function renderGuestTool() {
-  const f = state.fields.guest;
-  const can = f.message.trim().length > 10 && !!f.situationType && !!f.hostPosition;
+  var f = state.fields.guest;
+  var can = f.message.trim().length > 10 && !!f.situationType && !!f.hostPosition;
   return h("div",{},
     h("div",{className:"guest-note"},"\u{1F4AC} ",h("strong",{},"Guest message tool:")," Paste what the guest sent you. Tell us your position. Get a reply you can send back immediately."),
     h("div",{className:"field"},h("label",{className:"field-label"},"Property name ",h("span",{className:"field-optional"},"(optional)")),renderInput("guest","propertyName","e.g. SugarDolphin Beach Condo")),
@@ -416,6 +474,10 @@ function renderGuestTool() {
 
 function renderPaywall() {
   if (!state.showPaywall) return null;
+  var features = ["Unlimited responses across all 5 tools","Bad review responses","Positive & neutral review replies","Professional Airbnb dispute messages","Guest message replies"];
+  var featureEls = features.map(function(f){
+    return h("div",{className:"paywall-feature"},h("span",{style:{color:"#0D9488",fontWeight:"700"}},"\u2713"),f);
+  });
   return h("div",{className:"paywall-overlay"},
     h("div",{className:"paywall-box"},
       h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"\u{1F3E1}"),
@@ -424,19 +486,42 @@ function renderPaywall() {
       h("div",{style:{background:"#F0FDFA",border:"1px solid #CCFBF1",borderRadius:"14px",padding:"20px",marginBottom:"24px"}},
         h("div",{className:"paywall-price"},"$12",h("span",{style:{fontSize:"16px",fontWeight:"500",color:"#6B7280"}},"/month")),
         h("div",{style:{fontSize:"13px",color:"#6B7280",marginTop:"4px"}},"Cancel anytime"),
-        h("div",{className:"paywall-features"},
-          ...["Unlimited responses across all 5 tools","Bad review responses","Positive & neutral review replies","Professional Airbnb dispute messages","Guest message replies"].map(f=>
-            h("div",{className:"paywall-feature"},h("span",{style:{color:"#0D9488",fontWeight:"700"}},"\u2713"),f)
-          )
-        )
+        h("div",{className:"paywall-features"}, featureEls)
       ),
       h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"unlock-btn"},"Unlock Full Access \u2192"),
-      h("button",{className:"maybe-later",onClick:()=>setState({showPaywall:false})},"Maybe later")
+      h("button",{className:"maybe-later",onClick:function(){setState({showPaywall:false});}},"Maybe later")
+    )
+  );
+}
+
+function renderEmailGate() {
+  return h("div",{className:"email-gate"},
+    h("div",{className:"email-gate-box"},
+      h("div",{style:{fontSize:"40px",marginBottom:"16px"}},"\u{1F3E1}"),
+      h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"6px"}},"Start your free 3 day trial"),
+      h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"28px"}},"Enter your email to get instant access to all five tools. No credit card required."),
+      h("input",{className:"input",id:"gate-email",type:"email",placeholder:"you@email.com",onKeydown:function(e){if(e.key==="Enter")startTrial();}}),
+      h("button",{className:"btn",onClick:startTrial},"Start Free Trial \u2192"),
+      h("div",{className:"email-privacy"},"We will only email you if your trial is ending or we ship something new. No spam, ever.")
     )
   );
 }
 
 function renderLanding() {
+  var featureData = [
+    {icon:"\u{1F534}",title:"Bad Review Response",desc:"Turn a 1-star nightmare into a trust signal."},
+    {icon:"\u2B50",title:"Positive Review Reply",desc:"Thank guests in a way that feels personal."},
+    {icon:"\u{1F7E1}",title:"Neutral Review Follow-up",desc:"The 3-star review is the sneakiest threat."},
+    {icon:"\u2696\uFE0F",title:"Dispute & Flag Drafter",desc:"Build a formal Airbnb removal request."},
+    {icon:"\u{1F4AC}",title:"Guest Message Reply",desc:"Turn a wall of guest text into a calm, firm response."},
+  ];
+  var featureCards = featureData.map(function(f){
+    return h("div",{className:"feature-card"},
+      h("div",{className:"feature-icon"},f.icon),
+      h("div",{className:"feature-title"},f.title),
+      h("div",{className:"feature-desc"},f.desc)
+    );
+  });
   return h("div",{className:"landing"},
     h("div",{className:"header"},
       h("div",{className:"logo"},
@@ -446,7 +531,7 @@ function renderLanding() {
           h("div",{className:"logo-sub"},"AI Review Toolkit")
         )
       ),
-      h("button",{onClick:()=>setState({page:"app"}),style:{padding:"9px 18px",background:"#0D9488",color:"#fff",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}},"Try Free \u2192")
+      h("button",{onClick:goToApp,style:{padding:"9px 18px",background:"#0D9488",color:"#fff",border:"none",borderRadius:"8px",fontSize:"13px",fontWeight:"600",cursor:"pointer",fontFamily:"inherit"}},"Try Free \u2192")
     ),
     h("div",{className:"landing-hero"},
       h("div",{className:"landing-badge"},"\u2726 Built by a Superhost for Superhosts"),
@@ -454,32 +539,27 @@ function renderLanding() {
       h("p",{className:"landing-p",style:{fontWeight:"600",color:"#111827",marginBottom:"12px"}},"Every review is marketing. Make yours count."),
       h("p",{className:"landing-p"},"Turn difficult reviews, guest complaints, and Airbnb disputes into professional responses that build trust with future guests."),
       h("p",{className:"landing-p",style:{fontSize:"13px",fontStyle:"italic"}},"Created by a Superhost with multiple properties, including a Guest Favorite and a Top 10% property, and hundreds of guest reviews. After receiving a retaliatory one star review. Because future guests judge your response as much as the review itself."),
-      h("button",{className:"cta-btn",onClick:()=>setState({page:"app"})},"Start your 3 day free trial \u2192"),
+      h("button",{className:"cta-btn",onClick:goToApp},"Start your 3 day free trial \u2192"),
       h("div",{className:"cta-sub"},"No credit card required \u00B7 $12/month after trial"),
-      h("div",{className:"features-grid"},
-        ...[
-          {icon:"\u{1F534}",title:"Bad Review Response",desc:"Turn a 1-star nightmare into a trust signal."},
-          {icon:"\u2B50",title:"Positive Review Reply",desc:"Thank guests in a way that feels personal."},
-          {icon:"\u{1F7E1}",title:"Neutral Review Follow-up",desc:"The 3-star review is the sneakiest threat."},
-          {icon:"\u2696\uFE0F",title:"Dispute & Flag Drafter",desc:"Build a formal Airbnb removal request."},
-          {icon:"\u{1F4AC}",title:"Guest Message Reply",desc:"Turn a wall of guest text into a calm, firm response."},
-        ].map(f=>h("div",{className:"feature-card"},
-          h("div",{className:"feature-icon"},f.icon),
-          h("div",{className:"feature-title"},f.title),
-          h("div",{className:"feature-desc"},f.desc)
-        ))
-      ),
+      h("div",{className:"features-grid"}, featureCards),
       h("div",{className:"pricing-box"},
         h("div",{className:"pricing-price"},"$12",h("span",{style:{fontSize:"16px",fontWeight:"500",color:"#6B7280"}},"/month")),
         h("div",{className:"pricing-sub"},"Unlimited responses \u00B7 Cancel anytime"),
-        h("button",{className:"cta-btn",style:{maxWidth:"100%",margin:"0"},onClick:()=>setState({page:"app"})},"Start your free 3-day trial \u2192")
+        h("button",{className:"cta-btn",style:{maxWidth:"100%",margin:"0"},onClick:goToApp},"Start your free 3-day trial \u2192")
       )
     )
   );
 }
 
 function renderApp() {
-  const tool = TOOLS.find(t=>t.id===state.activeTool);
+  var tool = TOOLS.find(function(t){return t.id===state.activeTool;});
+  var toolContent;
+  if (state.activeTool==="bad") toolContent = renderBadTool();
+  else if (state.activeTool==="positive") toolContent = renderPositiveTool();
+  else if (state.activeTool==="neutral") toolContent = renderNeutralTool();
+  else if (state.activeTool==="dispute") toolContent = renderDisputeTool();
+  else toolContent = renderGuestTool();
+
   return h("div",{},
     renderPaywall(),
     renderHeader(),
@@ -490,13 +570,7 @@ function renderApp() {
         h("div",{className:"tool-headline"},tool.headline),
         h("div",{className:"tool-sub"},tool.sub)
       ),
-      h("div",{className:"card"},
-        state.activeTool==="bad" ? renderBadTool() :
-        state.activeTool==="positive" ? renderPositiveTool() :
-        state.activeTool==="neutral" ? renderNeutralTool() :
-        state.activeTool==="dispute" ? renderDisputeTool() :
-        renderGuestTool()
-      ),
+      h("div",{className:"card"}, toolContent),
       state.error ? h("div",{className:"error"},state.error) : null,
       h("div",{className:"footer"},"Superhost Reply Suite \u00B7 Built for serious hosts")
     )
@@ -504,13 +578,14 @@ function renderApp() {
 }
 
 function render() {
-  const app = document.getElementById("app");
+  var app = document.getElementById("app");
   app.innerHTML = "";
-  app.appendChild(state.page==="landing" ? renderLanding() : renderApp());
+  if (state.page === "landing") app.appendChild(renderLanding());
+  else if (state.page === "email-gate") app.appendChild(renderEmailGate());
+  else app.appendChild(renderApp());
 }
 
 // Initialize
-getTrialStart();
 state.daysRemaining = getTrialDaysRemaining();
 render();
 </script>
