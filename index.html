@@ -134,8 +134,9 @@ function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 function logEmail(email) {
   fetch(SHEET_URL, {
     method: "POST",
-    redirect: "follow",
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
+
       timestamp: new Date().toISOString(),
       tool: "EMAIL: " + email,
       status: "signup",
