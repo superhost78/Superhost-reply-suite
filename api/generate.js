@@ -1,5 +1,15 @@
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbwRaINcfSu40gGXOEEsDuLj6e7IhhZ7A7K_QPOje00lnYjqsG7M7W427VXL4G-_2Fph/exec";
 
+function detectTool(prompt) {
+  if (!prompt) return "Unknown";
+  if (prompt.includes("bad review")) return "Bad Review";
+  if (prompt.includes("thank-you")) return "Positive Review";
+  if (prompt.includes("neutral review")) return "Neutral Review";
+  if (prompt.includes("removal request")) return "Dispute";
+  if (prompt.includes("direct message reply")) return "Guest Message";
+  return "Unknown";
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -20,12 +30,13 @@ export default async function handler(req, res) {
   const data = await response.json();
 
   try {
+    var prompt = req.body?.messages?.[0]?.content || "";
     const logRes = await fetch(SHEET_URL, {
       method: "POST",
       redirect: "follow",
       body: JSON.stringify({
         timestamp: new Date().toISOString(),
-        tool: req.body?.messages?.[0]?.content?.slice(0, 80) || "unknown",
+        tool: detectTool(prompt),
         status: response.status,
         model: req.body?.model || "unknown",
         ip: req.headers["x-forwarded-for"] || "unknown"
