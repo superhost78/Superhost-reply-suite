@@ -14,6 +14,7 @@
 <meta name="twitter:description" content="AI powered review response tools for Airbnb hosts. Generate professional replies to bad reviews, positive reviews, neutral reviews, and Airbnb disputes in seconds.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script defer src="/_vercel/insights/script.js"></script>
+<script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Inter',-apple-system,sans-serif;background:#FAFAF7;min-height:100vh;}
@@ -103,43 +104,36 @@ button:active{transform:scale(0.98);}
 </style>
 </head>
 <body>
-
 <div id="app"></div>
-
 <script>
 var LS_SOLO_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
 var LS_SUPERHOST_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/5221ee29-8b2b-41a9-804b-b72458ff6db6";
 var LS_MANAGER_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/39e514c8-bd9a-4695-b20e-3ef343aa6cc5";
 var SHEET_URL = "/api/log";
-
 var FREE_LIMIT = 3;
 var USAGE_KEY = "srs_usage_count";
 var EMAIL_KEY = "srs_user_email";
-
+var LICENSE_VALID_STORE = "srs_license_valid";
 function getUsageCount() {
   try { return parseInt(localStorage.getItem(USAGE_KEY) || "0", 10); } catch(e) { return 0; }
 }
-
 function incrementUsage() {
   var count = getUsageCount() + 1;
   try { localStorage.setItem(USAGE_KEY, String(count)); } catch(e) {}
   return count;
 }
-
 function getFreeRemaining() {
   return Math.max(0, FREE_LIMIT - getUsageCount());
 }
-
-function isPaywalled() { return getFreeRemaining() === 0; }
-
+function isLicensed() {
+  try { return localStorage.getItem(LICENSE_VALID_STORE) === "true"; } catch(e) { return false; }
+}
+function isPaywalled() { return getFreeRemaining() === 0 && !isLicensed(); }
 function getSavedEmail() {
   try { return localStorage.getItem(EMAIL_KEY) || ""; } catch(e) { return ""; }
 }
-
 function hasEmail() { return getSavedEmail().length > 0; }
-
 function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
-
 function logEmail(email) {
   fetch(SHEET_URL, {
     method: "POST",
@@ -153,7 +147,6 @@ function logEmail(email) {
     })
   }).catch(function(){});
 }
-
 function startTrial() {
   var inp = document.getElementById("gate-email");
   if (!inp) return;
@@ -167,7 +160,6 @@ function startTrial() {
   logEmail(email);
   setState({page:"app"});
 }
-
 var TOOLS = [
   { id:"bad", label:"Bad Review", icon:"\u{1F534}", color:"#DC2626", headline:"Turn a bad review into a trust signal", sub:"Future guests read how you respond more than what they said." },
   { id:"positive", label:"Positive Review", icon:"\u2B50", color:"#D97706", headline:"Say thank you like you mean it", sub:"Hosts who reply to great reviews get more great reviews." },
@@ -175,13 +167,10 @@ var TOOLS = [
   { id:"dispute", label:"Dispute & Flag", icon:"\u2696\uFE0F", color:"#7C3AED", headline:"Build your escalation case \u2014 word by word", sub:"Use the guest\u0027s own words to write a dispute Airbnb can\u0027t ignore." },
   { id:"guest", label:"Guest Message", icon:"\u{1F4AC}", color:"#2563EB", headline:"Respond to any guest message like a pro", sub:"Paste what they sent. Pick your position. Get a reply that\u0027s firm, warm, and clear." },
 ];
-
 var TONES = ["Professional","Warm","Firm","Apologetic"];
 var TONE_ICONS = {Professional:"\u{1F3A9}",Warm:"\u{1F91D}",Firm:"\u2696\uFE0F",Apologetic:"\u{1F54A}\uFE0F"};
-
 var BAD_ISSUES = ["Cleanliness complaint","Amenity not as described","Noise complaint","Check-in issue","Host communication","Safety concern (unfounded)","Retaliatory / suspected fake","Pricing / value complaint","Other"];
 var DISPUTE_GROUNDS = ["Retaliatory review after dispute","Review violates Airbnb content policy","Guest caused damage and reviewed negatively","Review contains false factual claims","Guest broke house rules, then reviewed","Review left by wrong guest / error","Extortion attempt prior to review"];
-
 var GUEST_SITUATIONS = [
   "Refund request outside cancellation policy",
   "Complaint during stay",
@@ -192,7 +181,6 @@ var GUEST_SITUATIONS = [
   "Damage or missing item accusation",
   "General emotional / overwhelming message"
 ];
-
 var HOST_POSITIONS = [
   "Holding firm on my policy",
   "Willing to offer a partial refund or concession",
@@ -200,7 +188,6 @@ var HOST_POSITIONS = [
   "Escalating to Airbnb support",
   "Approving the request"
 ];
-
 var state = {
   page: "landing",
   activeTool: "bad",
@@ -217,7 +204,6 @@ var state = {
     guest: {message:"",situationType:"",hostPosition:"",tone:"Professional",propertyName:""},
   }
 };
-
 function goToApp() {
   if (hasEmail()) {
     setState({page:"app"});
@@ -225,17 +211,14 @@ function goToApp() {
     setState({page:"email-gate"});
   }
 }
-
 function setState(updates) {
   state = Object.assign({}, state, updates);
   render();
 }
-
 function setField(toolId, key, val) {
   state.fields[toolId][key] = val;
   updateGenerateBtn();
 }
-
 function updateGenerateBtn() {
   var f = state.fields[state.activeTool];
   var can = false;
@@ -247,7 +230,6 @@ function updateGenerateBtn() {
   var btn = document.querySelector(".btn");
   if (btn) btn.disabled = !can || state.loading;
 }
-
 function buildPrompt(toolId) {
   var f = state.fields[toolId];
   var prop = f.propertyName ? ' for "' + f.propertyName + '"' : "";
@@ -257,7 +239,6 @@ function buildPrompt(toolId) {
   if (toolId === "dispute") return "You are an expert Airbnb dispute specialist. Write a formal review removal request to Airbnb support" + prop + ".\nGrounds: " + f.disputeGround + '\nReview: "' + f.review + '"\n' + (f.yourContext ? "Evidence: " + f.yourContext : "") + "\nRules: Under 300 words. Reference Airbnb Review Policy. Request review removal. Write ONLY the dispute message.";
   if (toolId === "guest") return "You are an expert Airbnb Superhost consultant. Draft a direct message reply to a guest" + prop + ".\nSituation: " + f.situationType + "\nHost position: " + f.hostPosition + '\nGuest message: "' + f.message + '"\nRules: Under 200 words. Be ' + f.tone.toLowerCase() + ". Address everything the guest raised. Be clear about the outcome without being cold. Do not over-apologize. Do not be a pushover. Protect the host's position while remaining respectful. Write ONLY the reply message.";
 }
-
 async function generate() {
   if (isPaywalled()) { setState({showPaywall:true}); return; }
   var prompt = buildPrompt(state.activeTool);
@@ -282,13 +263,11 @@ async function generate() {
     setState({loading:false, error:"Connection error. Please try again."});
   }
 }
-
 function copyOutput() {
   navigator.clipboard.writeText(state.outputs[state.activeTool]);
   setState({copied:true});
   setTimeout(function(){setState({copied:false});}, 2000);
 }
-
 function h(tag, attrs) {
   var el = document.createElement(tag);
   var children = Array.prototype.slice.call(arguments, 2);
@@ -309,14 +288,15 @@ function h(tag, attrs) {
   });
   return el;
 }
-
 function renderHeader() {
   var remaining = getFreeRemaining();
   var badge;
-  if (remaining > 0) {
+  if (isLicensed()) {
+    badge = h("div",{className:"badge"}, "Subscribed \u2713");
+  } else if (remaining > 0) {
     badge = h("div",{className:"badge"}, remaining + " free response" + (remaining!==1?"s":"") + " left");
   } else {
-    badge = h("a",{href:LS_SOLO_URL,target:"_blank",className:"badge",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Upgrade \u2192");
+    badge = h("a",{href:LS_SOLO_URL,className:"badge lemonsqueezy-button",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Upgrade \u2192");
   }
   return h("div",{className:"header"},
     h("div",{className:"logo", onClick:function(){setState({page:"landing"});}},
@@ -329,7 +309,6 @@ function renderHeader() {
     badge
   );
 }
-
 function renderTabs() {
   var tabEls = TOOLS.map(function(t) {
     var tab = h("button",{
@@ -345,7 +324,6 @@ function renderTabs() {
   });
   return h("div",{className:"tabs"}, tabEls);
 }
-
 function renderToneSelector(toolId) {
   var tone = state.fields[toolId].tone;
   var btns = TONES.map(function(t) {
@@ -356,7 +334,6 @@ function renderToneSelector(toolId) {
   });
   return h("div",{className:"tones"}, btns);
 }
-
 function renderSelect(toolId, key, options, placeholder) {
   var val = state.fields[toolId][key];
   var opts = [h("option",{value:""},placeholder)].concat(options.map(function(o){return h("option",{value:o},o);}));
@@ -364,7 +341,6 @@ function renderSelect(toolId, key, options, placeholder) {
   sel.value = val;
   return sel;
 }
-
 function renderTextarea(toolId, key, placeholder, rows, max) {
   rows = rows || 5;
   max = max || 1000;
@@ -383,7 +359,6 @@ function renderTextarea(toolId, key, placeholder, rows, max) {
   wrap.appendChild(cc);
   return wrap;
 }
-
 function renderInput(toolId, key, placeholder) {
   var inp = h("input",{className:"input",placeholder:placeholder,type:"text",
     onInput:function(e){setField(toolId,key,e.target.value);}
@@ -391,7 +366,6 @@ function renderInput(toolId, key, placeholder) {
   inp.value = state.fields[toolId][key];
   return inp;
 }
-
 function renderOutputCard() {
   var output = state.outputs[state.activeTool];
   if (!output) return null;
@@ -406,17 +380,14 @@ function renderOutputCard() {
     h("div",{className:"tip"},"\u{1F4A1} ",h("strong",{},"Pro tip:")," Post your response within 48 hours. Speed signals attentiveness to future guests.")
   );
 }
-
 function renderGenerateBtn(can, label) {
   label = label || "Generate Response \u2192";
-  var remaining = getFreeRemaining();
   var btn = h("button",{className:"btn",onClick:generate},
     state.loading ? h("span",{},h("span",{className:"spinner"}),"Crafting your response\u2026") : label
   );
   if (!can || state.loading) btn.disabled = true;
   return btn;
 }
-
 function renderBadTool() {
   var f = state.fields.bad;
   var can = f.review.trim().length>10 && !!f.issueType;
@@ -429,7 +400,6 @@ function renderBadTool() {
     renderOutputCard()
   );
 }
-
 function renderPositiveTool() {
   var f = state.fields.positive;
   var can = f.review.trim().length>10;
@@ -442,7 +412,6 @@ function renderPositiveTool() {
     renderOutputCard()
   );
 }
-
 function renderNeutralTool() {
   var f = state.fields.neutral;
   var can = f.review.trim().length>10;
@@ -455,7 +424,6 @@ function renderNeutralTool() {
     renderOutputCard()
   );
 }
-
 function renderDisputeTool() {
   var f = state.fields.dispute;
   var can = f.review.trim().length>10 && !!f.disputeGround;
@@ -469,7 +437,6 @@ function renderDisputeTool() {
     renderOutputCard()
   );
 }
-
 function renderGuestTool() {
   var f = state.fields.guest;
   var can = f.message.trim().length > 10 && !!f.situationType && !!f.hostPosition;
@@ -484,7 +451,6 @@ function renderGuestTool() {
     renderOutputCard()
   );
 }
-
 function renderPaywall() {
   if (!state.showPaywall) return null;
   var used = getUsageCount();
@@ -494,14 +460,14 @@ function renderPaywall() {
       h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"6px"}},"You've used your " + FREE_LIMIT + " free responses!"),
       h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"24px"}},"You generated " + used + " AI responses and saved valuable time. Choose a plan to keep going."),
       h("div",{className:"tier-cards"},
-        h("a",{href:LS_SOLO_URL,target:"_blank",className:"tier-card",style:{textDecoration:"none"}},
+        h("a",{href:LS_SOLO_URL,className:"tier-card lemonsqueezy-button",style:{textDecoration:"none"}},
           h("div",{},
             h("span",{className:"tier-name"},"Solo"),
             h("span",{className:"tier-price",style:{marginLeft:"12px"}},"$12/mo")
           ),
           h("div",{className:"tier-desc"},"Up to 5 responses per month. Perfect for a casual host with 1 property.")
         ),
-        h("a",{href:LS_SUPERHOST_URL,target:"_blank",className:"tier-card tier-card-pop",style:{textDecoration:"none"}},
+        h("a",{href:LS_SUPERHOST_URL,className:"tier-card tier-card-pop lemonsqueezy-button",style:{textDecoration:"none"}},
           h("div",{},
             h("span",{className:"tier-name"},"Superhost"),
             h("span",{className:"tier-popular"},"POPULAR"),
@@ -509,7 +475,7 @@ function renderPaywall() {
           ),
           h("div",{className:"tier-desc"},"Up to 25 responses per month. Built for hosts managing 2 to 5 properties.")
         ),
-        h("a",{href:LS_MANAGER_URL,target:"_blank",className:"tier-card",style:{textDecoration:"none"}},
+        h("a",{href:LS_MANAGER_URL,className:"tier-card lemonsqueezy-button",style:{textDecoration:"none"}},
           h("div",{},
             h("span",{className:"tier-name"},"Manager"),
             h("span",{className:"tier-price",style:{marginLeft:"12px"}},"$79/mo")
@@ -522,7 +488,6 @@ function renderPaywall() {
     )
   );
 }
-
 function renderEmailGate() {
   return h("div",{className:"email-gate"},
     h("div",{className:"email-gate-box"},
@@ -535,7 +500,6 @@ function renderEmailGate() {
     )
   );
 }
-
 function renderLanding() {
   var featureData = [
     {icon:"\u{1F534}",title:"Bad Review Response",desc:"Turn a 1-star nightmare into a trust signal."},
@@ -601,7 +565,6 @@ function renderLanding() {
     )
   );
 }
-
 function renderApp() {
   var tool = TOOLS.find(function(t){return t.id===state.activeTool;});
   var toolContent;
@@ -610,7 +573,6 @@ function renderApp() {
   else if (state.activeTool==="neutral") toolContent = renderNeutralTool();
   else if (state.activeTool==="dispute") toolContent = renderDisputeTool();
   else toolContent = renderGuestTool();
-
   return h("div",{},
     renderPaywall(),
     renderHeader(),
@@ -627,7 +589,6 @@ function renderApp() {
     )
   );
 }
-
 function render() {
   var app = document.getElementById("app");
   app.innerHTML = "";
@@ -635,7 +596,18 @@ function render() {
   else if (state.page === "email-gate") app.appendChild(renderEmailGate());
   else app.appendChild(renderApp());
 }
-
+window.addEventListener("load", function() {
+  LemonSqueezy.Setup({
+    eventHandler: function(event) {
+      if (event.event === "Checkout.Success") {
+        try { localStorage.setItem(LICENSE_VALID_STORE, "true"); } catch(e) {}
+        LemonSqueezy.Url.Close();
+        setState({showPaywall: false});
+        render();
+      }
+    }
+  });
+});
 render();
 </script>
 </body>
