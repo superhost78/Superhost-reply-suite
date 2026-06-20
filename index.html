@@ -63,7 +63,7 @@ button:active{transform:scale(0.98);}
 .guest-note{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:13px;color:#2563EB;line-height:1.5;}
 .footer{text-align:center;margin-top:40px;font-size:12px;color:#6B7280;}
 .paywall-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;}
-.paywall-box{background:#fff;border-radius:20px;padding:36px 28px;max-width:420px;width:100%;text-align:center;animation:fadeIn 0.25s ease;}
+.paywall-box{background:#fff;border-radius:20px;padding:36px 28px;max-width:480px;width:100%;text-align:center;animation:fadeIn 0.25s ease;}
 .paywall-price{font-size:32px;font-weight:800;color:#0D9488;letter-spacing:-1px;}
 .paywall-features{margin-top:14px;display:flex;flex-direction:column;gap:8px;text-align:left;}
 .paywall-feature{font-size:13px;color:#111827;display:flex;align-items:center;gap:8px;}
@@ -89,6 +89,17 @@ button:active{transform:scale(0.98);}
 .email-gate-box .input{text-align:center;font-size:15px;padding:14px;margin-bottom:14px;}
 .email-gate-box .btn{margin-top:0;}
 .email-privacy{font-size:12px;color:#9CA3AF;margin-top:12px;line-height:1.5;}
+.tier-cards{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;}
+.tier-card{background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:12px;padding:16px;text-align:left;cursor:pointer;transition:border-color 0.15s;}
+.tier-card:hover{border-color:#0D9488;}
+.tier-card-pop{background:#F0FDFA;border-color:#0D9488;}
+.tier-name{font-size:15px;font-weight:700;color:#111827;}
+.tier-price{font-size:13px;color:#0D9488;font-weight:600;}
+.tier-desc{font-size:12px;color:#6B7280;margin-top:4px;}
+.tier-popular{display:inline-block;background:#0D9488;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;letter-spacing:0.3px;}
+.pricing-tiers{display:flex;flex-direction:column;gap:12px;margin-top:20px;text-align:left;}
+.pricing-tier{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;}
+.pricing-tier-pop{background:#F0FDFA;border-color:#0D9488;}
 </style>
 </head>
 <body>
@@ -96,32 +107,30 @@ button:active{transform:scale(0.98);}
 <div id="app"></div>
 
 <script>
-var LS_CHECKOUT_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
+var LS_SOLO_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
+var LS_SUPERHOST_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
+var LS_MANAGER_URL = "https://superhost-reply-suite.lemonsqueezy.com/checkout/buy/b8287e90-5c5f-433f-b39f-3a830afb5fd2";
 var SHEET_URL = "/api/log";
 
-var TRIAL_DAYS = 3;
-var TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
-var STORAGE_KEY = "srs_trial_start";
+var FREE_LIMIT = 3;
+var USAGE_KEY = "srs_usage_count";
 var EMAIL_KEY = "srs_user_email";
 
-function getTrialStart() {
-  try {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return parseInt(raw, 10);
-    var now = Date.now();
-    localStorage.setItem(STORAGE_KEY, String(now));
-    return now;
-  } catch(e) { return Date.now(); }
+function getUsageCount() {
+  try { return parseInt(localStorage.getItem(USAGE_KEY) || "0", 10); } catch(e) { return 0; }
 }
 
-function getTrialDaysRemaining() {
-  var start = getTrialStart();
-  var elapsed = Date.now() - start;
-  var remaining = Math.ceil((TRIAL_MS - elapsed) / (1000 * 60 * 60 * 24));
-  return Math.max(0, remaining);
+function incrementUsage() {
+  var count = getUsageCount() + 1;
+  try { localStorage.setItem(USAGE_KEY, String(count)); } catch(e) {}
+  return count;
 }
 
-function isPaywalled() { return getTrialDaysRemaining() === 0; }
+function getFreeRemaining() {
+  return Math.max(0, FREE_LIMIT - getUsageCount());
+}
+
+function isPaywalled() { return getFreeRemaining() === 0; }
 
 function getSavedEmail() {
   try { return localStorage.getItem(EMAIL_KEY) || ""; } catch(e) { return ""; }
@@ -136,7 +145,6 @@ function logEmail(email) {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
-
       timestamp: new Date().toISOString(),
       tool: "EMAIL: " + email,
       status: "signup",
@@ -157,8 +165,7 @@ function startTrial() {
   }
   try { localStorage.setItem(EMAIL_KEY, email); } catch(e) {}
   logEmail(email);
-  getTrialStart();
-  setState({page:"app", daysRemaining:getTrialDaysRemaining()});
+  setState({page:"app"});
 }
 
 var TOOLS = [
@@ -201,7 +208,6 @@ var state = {
   outputs: {bad:"",positive:"",neutral:"",dispute:"",guest:""},
   copied: false,
   showPaywall: false,
-  daysRemaining: TRIAL_DAYS,
   error: "",
   fields: {
     bad: {review:"",issueType:"",tone:"Professional",propertyName:""},
@@ -214,7 +220,7 @@ var state = {
 
 function goToApp() {
   if (hasEmail()) {
-    setState({page:"app", daysRemaining:getTrialDaysRemaining()});
+    setState({page:"app"});
   } else {
     setState({page:"email-gate"});
   }
@@ -265,9 +271,10 @@ async function generate() {
     var data = await res.json();
     var text = (data.content||[]).map(function(b){return b.text||"";}).join("").trim();
     if (text) {
+      incrementUsage();
       var outputs = Object.assign({}, state.outputs);
       outputs[state.activeTool] = text;
-      setState({outputs:outputs, loading:false, daysRemaining:getTrialDaysRemaining()});
+      setState({outputs:outputs, loading:false});
     } else {
       setState({loading:false, error:"Something went wrong. Please try again."});
     }
@@ -304,10 +311,13 @@ function h(tag, attrs) {
 }
 
 function renderHeader() {
-  var days = state.daysRemaining;
-  var badge = days > 0
-    ? h("div",{className:"badge"}, days + " day" + (days!==1?"s":"") + " left in trial")
-    : h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"badge",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Unlock Full Access \u2192");
+  var remaining = getFreeRemaining();
+  var badge;
+  if (remaining > 0) {
+    badge = h("div",{className:"badge"}, remaining + " free response" + (remaining!==1?"s":"") + " left");
+  } else {
+    badge = h("a",{href:LS_SOLO_URL,target:"_blank",className:"badge",style:{textDecoration:"none",background:"linear-gradient(135deg,#0D9488,#0F766E)",color:"#fff"}}, "Upgrade \u2192");
+  }
   return h("div",{className:"header"},
     h("div",{className:"logo", onClick:function(){setState({page:"landing"});}},
       h("div",{className:"logo-icon"},"\u{1F3E1}"),
@@ -399,6 +409,7 @@ function renderOutputCard() {
 
 function renderGenerateBtn(can, label) {
   label = label || "Generate Response \u2192";
+  var remaining = getFreeRemaining();
   var btn = h("button",{className:"btn",onClick:generate},
     state.loading ? h("span",{},h("span",{className:"spinner"}),"Crafting your response\u2026") : label
   );
@@ -476,21 +487,37 @@ function renderGuestTool() {
 
 function renderPaywall() {
   if (!state.showPaywall) return null;
-  var features = ["Unlimited responses across all 5 tools","Bad review responses","Positive & neutral review replies","Professional Airbnb dispute messages","Guest message replies"];
-  var featureEls = features.map(function(f){
-    return h("div",{className:"paywall-feature"},h("span",{style:{color:"#0D9488",fontWeight:"700"}},"\u2713"),f);
-  });
+  var used = getUsageCount();
   return h("div",{className:"paywall-overlay"},
     h("div",{className:"paywall-box"},
-      h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"\u{1F3E1}"),
-      h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"8px"}},"Your trial has ended"),
-      h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"24px"}},"Unlock unlimited responses across all five tools."),
-      h("div",{style:{background:"#F0FDFA",border:"1px solid #CCFBF1",borderRadius:"14px",padding:"20px",marginBottom:"24px"}},
-        h("div",{className:"paywall-price"},"$12",h("span",{style:{fontSize:"16px",fontWeight:"500",color:"#6B7280"}},"/month")),
-        h("div",{style:{fontSize:"13px",color:"#6B7280",marginTop:"4px"}},"Cancel anytime"),
-        h("div",{className:"paywall-features"}, featureEls)
+      h("div",{style:{fontSize:"40px",marginBottom:"12px"}},"\u{1F680}"),
+      h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"6px"}},"You've used your " + FREE_LIMIT + " free responses!"),
+      h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"24px"}},"You generated " + used + " AI responses and saved valuable time. Choose a plan to keep going."),
+      h("div",{className:"tier-cards"},
+        h("a",{href:LS_SOLO_URL,target:"_blank",className:"tier-card",style:{textDecoration:"none"}},
+          h("div",{},
+            h("span",{className:"tier-name"},"Solo"),
+            h("span",{className:"tier-price",style:{marginLeft:"12px"}},"$12/mo")
+          ),
+          h("div",{className:"tier-desc"},"Up to 5 responses per month. Perfect for a casual host with 1 property.")
+        ),
+        h("a",{href:LS_SUPERHOST_URL,target:"_blank",className:"tier-card tier-card-pop",style:{textDecoration:"none"}},
+          h("div",{},
+            h("span",{className:"tier-name"},"Superhost"),
+            h("span",{className:"tier-popular"},"POPULAR"),
+            h("span",{className:"tier-price",style:{marginLeft:"12px"}},"$34/mo")
+          ),
+          h("div",{className:"tier-desc"},"Up to 25 responses per month. Built for hosts managing 2 to 5 properties.")
+        ),
+        h("a",{href:LS_MANAGER_URL,target:"_blank",className:"tier-card",style:{textDecoration:"none"}},
+          h("div",{},
+            h("span",{className:"tier-name"},"Manager"),
+            h("span",{className:"tier-price",style:{marginLeft:"12px"}},"$79/mo")
+          ),
+          h("div",{className:"tier-desc"},"Unlimited responses. For property managers running 6+ listings.")
+        )
       ),
-      h("a",{href:LS_CHECKOUT_URL,target:"_blank",className:"unlock-btn"},"Unlock Full Access \u2192"),
+      h("div",{style:{fontSize:"12px",color:"#9CA3AF",marginBottom:"16px"}},"All plans include all 5 tools. Cancel anytime."),
       h("button",{className:"maybe-later",onClick:function(){setState({showPaywall:false});}},"Maybe later")
     )
   );
@@ -500,7 +527,7 @@ function renderEmailGate() {
   return h("div",{className:"email-gate"},
     h("div",{className:"email-gate-box"},
       h("div",{style:{fontSize:"40px",marginBottom:"16px"}},"\u{1F3E1}"),
-      h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"6px"}},"Start your free 3 day trial"),
+      h("div",{style:{fontSize:"22px",fontWeight:"800",color:"#111827",marginBottom:"6px"}},"Try " + FREE_LIMIT + " responses free"),
       h("div",{style:{fontSize:"14px",color:"#6B7280",lineHeight:"1.6",marginBottom:"28px"}},"Enter your email to get instant access to all five tools. No credit card required."),
       h("input",{className:"input",id:"gate-email",type:"email",placeholder:"you@email.com",onKeydown:function(e){if(e.key==="Enter")startTrial();}}),
       h("button",{className:"btn",onClick:startTrial},"Start Free Trial \u2192"),
@@ -541,13 +568,35 @@ function renderLanding() {
       h("p",{className:"landing-p",style:{fontWeight:"600",color:"#111827",marginBottom:"12px"}},"Every review is marketing. Make yours count."),
       h("p",{className:"landing-p"},"Turn difficult reviews, guest complaints, and Airbnb disputes into professional responses that build trust with future guests."),
       h("p",{className:"landing-p",style:{fontSize:"13px",fontStyle:"italic"}},"Created by a Superhost with multiple properties, including a Guest Favorite and a Top 10% property, and hundreds of guest reviews. After receiving a retaliatory one star review. Because future guests judge your response as much as the review itself."),
-      h("button",{className:"cta-btn",onClick:goToApp},"Start your 3 day free trial \u2192"),
-      h("div",{className:"cta-sub"},"No credit card required \u00B7 $12/month after trial"),
+      h("button",{className:"cta-btn",onClick:goToApp},"Try " + FREE_LIMIT + " responses free \u2192"),
+      h("div",{className:"cta-sub"},"No credit card required"),
       h("div",{className:"features-grid"}, featureCards),
       h("div",{className:"pricing-box"},
-        h("div",{className:"pricing-price"},"$12",h("span",{style:{fontSize:"16px",fontWeight:"500",color:"#6B7280"}},"/month")),
-        h("div",{className:"pricing-sub"},"Unlimited responses \u00B7 Cancel anytime"),
-        h("button",{className:"cta-btn",style:{maxWidth:"100%",margin:"0"},onClick:goToApp},"Start your free 3-day trial \u2192")
+        h("div",{style:{fontSize:"20px",fontWeight:"800",color:"#111827",marginBottom:"16px"}},"Simple, scalable pricing"),
+        h("div",{className:"pricing-tiers"},
+          h("div",{className:"pricing-tier"},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("div",{className:"tier-name"},"Solo"),
+              h("div",{className:"tier-price"},"$12/mo")
+            ),
+            h("div",{className:"tier-desc",style:{marginTop:"6px"}},"5 responses/month. Perfect for 1 property.")
+          ),
+          h("div",{className:"pricing-tier pricing-tier-pop"},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("div",{},h("span",{className:"tier-name"},"Superhost"),h("span",{className:"tier-popular"},"POPULAR")),
+              h("div",{className:"tier-price"},"$34/mo")
+            ),
+            h("div",{className:"tier-desc",style:{marginTop:"6px"}},"25 responses/month. Built for 2 to 5 properties.")
+          ),
+          h("div",{className:"pricing-tier"},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("div",{className:"tier-name"},"Manager"),
+              h("div",{className:"tier-price"},"$79/mo")
+            ),
+            h("div",{className:"tier-desc",style:{marginTop:"6px"}},"Unlimited responses. For 6+ listings.")
+          )
+        ),
+        h("button",{className:"cta-btn",style:{maxWidth:"100%",margin:"20px 0 0 0"},onClick:goToApp},"Try " + FREE_LIMIT + " responses free \u2192")
       )
     )
   );
@@ -587,8 +636,6 @@ function render() {
   else app.appendChild(renderApp());
 }
 
-// Initialize
-state.daysRemaining = getTrialDaysRemaining();
 render();
 </script>
 </body>
